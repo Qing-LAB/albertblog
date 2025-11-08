@@ -1,0 +1,12 @@
+# Minimal site parameters override. Configure site, social links, analytics, etc. here.
+title = "My Wowchemy Site"
+description = "A minimal Wowchemy-based starter site."
+author = "Your Name"
+
+[params.social]
+twitter = ""
+github = ""
+linkedin = ""
+
+[params.color]
+primary = "#0b5cff"
