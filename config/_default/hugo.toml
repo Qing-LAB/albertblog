@@ -1,0 +1,48 @@
+baseURL = "https://albert.org/"
+title = "Albert's Awesom Blog"
+languageCode = "en-us"
+
+enableRobotsTXT = true
+googleAnalytics = ""
+
+# If you’re using Hugo Modules via module.yaml, you usually don’t set theme= here.
+# theme = "" 
+
+[markup.goldmark.renderer]
+unsafe = true  # allows HTML in Markdown (Wowchemy often expects this)
+
+[outputs]
+home = ["HTML", "RSS", "JSON"]
+section = ["HTML", "RSS"]
+page = ["HTML"]
+taxonomy = ["HTML", "RSS"]
+term = ["HTML", "RSS"]
+
+[pagination]
+    pagerSize = 10
+
+[outputFormats.decap_cms_config]
+    mediaType = "application/json"
+    baseName = "config"
+    isPlainText = true
+    notAlternative = true
+
+[security]
+  enableInlineShortcodes = false
+
+  [security.exec]
+    allow = ['^(dart-)?sass(-embedded)?$', '^go$', '^git$', '^npx$', '^postcss$', '^tailwindcss$']
+    osEnv = ['(?i)^((HTTPS?|NO)_PROXY|PATH(EXT)?|APPDATA|TE?MP|TERM|GO\\w+|(XDG_CONFIG_)?HOME|USERPROFILE|SSH_AUTH_SOCK|DISPLAY|LANG|SYSTEMDRIVE|PROGRAMDATA)$']
+
+  [security.funcs]
+    # Add WC_ to permit theme’s getenv checks like WC_POST_CSS
+    getenv = ['^HUGO_', '^CI$', '^WC_']
+
+  [security.http]
+    methods = ['(?i)GET|POST']
+    urls = ['.*']
+
+# Enable Hugo’s services map and set GA ID (blank disables safely)
+[services]
+  [services.googleAnalytics]
+    id = ""          # or your real GA4 ID like "G-XXXXXXXXXX"

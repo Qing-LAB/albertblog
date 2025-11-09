@@ -1,12 +1,14 @@
-# Minimal site parameters override. Configure site, social links, analytics, etc. here.
-title = "My Wowchemy Site"
-description = "A minimal Wowchemy-based starter site."
-author = "Your Name"
+[params]
+siteTitle = "Albert's Blog"
+siteTagline = "My journal of military equipment"
+favicon = "media/icon.png"
 
-[params.social]
-twitter = ""
-github = ""
-linkedin = ""
+# Example hero values you might reference inside Wowchemy blocks (optional helpers)
+[params.hero]
+headline = "Albert's Awesome Blog"
+subheadline = "My journal of military equipment"
+background = "images/baground.jpg"
 
-[params.color]
-primary = "#0b5cff"
+[marketing.analytics]
+google_analytics = ""
+
