@@ -1,0 +1,43 @@
+{{/* Usage:
+     {{< alumni_list >}}
+     {{< alumni_list style="cards" limit="6" >}}
+*/}}
+
+{{- $style := .Get "style" | default "table" -}}
+{{- $limit := .Get "limit" | default 0 | int -}}
+{{- $items := site.Data.alumni.people | default (slice) -}}
+
+{{- /* Optional: sort by name; change to "years" if you prefer */ -}}
+{{- $items = sort $items "name" -}}
+{{- if gt $limit 0 -}} {{- $items = first $limit $items -}} {{- end -}}
+
+{{- if not (len $items) -}}
+  <p class="text-muted"><em>No alumni added yet. Check back soon.</em></p>
+{{- else if eq (lower $style) "cards" -}}
+  <div class="alumni-cards">
+    {{- range $items -}}
+      <article class="alumni-card">
+        <h3 class="alumni-name">{{ .name }}</h3>
+        <p class="alumni-meta">
+          <span class="role">{{ .role }}</span>{{ with .years }} <span class="years"> ({{ . }})</span>{{ end }}
+        </p>
+        {{- with .current -}}<p class="alumni-current">{{ . }}</p>{{- end -}}
+        {{- with .link -}}<p class="alumni-link"><a href="{{ . }}" target="_blank" rel="noopener">Profile</a></p>{{- end -}}
+      </article>
+    {{- end -}}
+  </div>
+{{- else -}}
+  <table class="alumni-table">
+    <thead><tr><th>Name</th><th>Role / Years</th><th>Current</th><th></th></tr></thead>
+    <tbody>
+      {{- range $items -}}
+        <tr>
+          <td>{{ .name }}</td>
+          <td>{{ .role }}{{ with .years }} ({{ . }}){{ end }}</td>
+          <td>{{ with .current }}{{ . }}{{ end }}</td>
+          <td>{{ with .link }}<a href="{{ . }}" target="_blank" rel="noopener">Link</a>{{ end }}</td>
+        </tr>
+      {{- end -}}
+    </tbody>
+  </table>
+{{- end -}}

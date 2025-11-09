@@ -1,0 +1,136 @@
+<script>
+(function(){
+  // --- helpers (unchanged if you already have them) ---
+  function lastBgUrl(el){
+    const s = getComputedStyle(el).backgroundImage;
+    const urls = s ? s.match(/url\((['"]?)(.*?)\1\)/g) : null;
+    if (!urls || !urls.length) return null;
+    return urls[urls.length - 1].replace(/url\((['"]?)(.*?)\1\)/,'$2');
+  }
+  function toHsl(r,g,b){
+    r/=255; g/=255; b/=255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    let h=0,s=0,l=(max+min)/2;
+    if(max!==min){
+      const d=max-min;
+      s = l>0.5 ? d/(2-max-min) : d/(max+min);
+      switch(max){
+        case r: h=(g-b)/d+(g<b?6:0); break;
+        case g: h=(b-r)/d+2; break;
+        case b: h=(r-g)/d+4; break;
+      }
+      h/=6;
+    }
+    return {h:Math.round(h*360), s:Math.round(s*100), l:Math.round(l*100)};
+  }
+  function fromRgbStr(rgb){ // "rgb(a?, r, g, b[/a])" -> {r,g,b}
+    const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (!m) return {r:15,g:16,b:18}; // safe dark fallback
+    return { r:+m[1], g:+m[2], b:+m[3] };
+  }
+  const hsla = (h,s,l,a=1)=>`hsla(${h} ${s}% ${l}% / ${a})`;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+  async function averageColor(url){
+    try {
+      const res = await fetch(url, { mode:'cors', credentials:'omit' });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const obj = URL.createObjectURL(blob);
+      try { return await fromImage(obj); }
+      finally { URL.revokeObjectURL(obj); }
+    } catch { return await fromImage(url); }
+  }
+  function fromImage(src){
+    return new Promise((resolve,reject)=>{
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const n=16, c=document.createElement('canvas');
+          c.width=n; c.height=n;
+          const x=c.getContext('2d',{ willReadFrequently:true });
+          x.drawImage(img,0,0,n,n);
+          const d=x.getImageData(0,0,n,n).data;
+          let r=0,g=0,b=0,k=0;
+          for(let i=0;i<d.length;i+=4){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; k++; }
+          resolve({ r:Math.round(r/k), g:Math.round(g/k), b:Math.round(b/k) });
+        } catch(e){ reject(e); }
+      };
+      img.onerror = reject;
+      img.decoding='async';
+      img.src = src;
+    });
+  }
+
+  function mixHsl(a, b, t){ // simple perceptual-ish mix for s/l, hue short arc
+    const dh = ((((b.h - a.h) % 360) + 540) % 360) - 180; // shortest path
+    return {
+      h: Math.round((a.h + dh * t + 360) % 360),
+      s: Math.round(a.s + (b.s - a.s) * t),
+      l: Math.round(a.l + (b.l - a.l) * t)
+    };
+  }
+
+  async function tone(){
+    const heroBg = document.querySelector('#hero .home-section-bg, #hero .bg-image');
+    const feat   = document.querySelector('#research.home-section, section#research, .wg-features');
+    const next   = document.querySelector('#contact.home-section, section#contact, .wg-contact');
+    if (!heroBg || !feat) return;
+
+    // 1) Source color from hero image
+    const url = lastBgUrl(heroBg);
+    if (!url) return;
+
+    try {
+      const heroAvg = await averageColor(url);
+      const heroHsl = toHsl(heroAvg.r, heroAvg.g, heroAvg.b);
+
+      // 2) Friendlier, brighter/somewhat richer base for features
+      const s2 = clamp(Math.round(heroHsl.s * 0.70 + 10), 10, 40); // ↑ saturation
+      const l2 = clamp(Math.round(heroHsl.l * 0.74 + 10), 10, 40); // ↑ lightness
+
+      // 3) Determine next-section background color (contact or body)
+      let nextRgb = {r:245,g:245,b:245};
+      if (next) {
+        // Prefer the section's computed bg-color, else its bg layer, else body
+        const csNext = getComputedStyle(next);
+        const bgc = csNext.backgroundColor && csNext.backgroundColor !== 'rgba(0, 0, 0, 0)'
+          ? csNext.backgroundColor
+          : getComputedStyle(document.body).backgroundColor;
+        nextRgb = fromRgbStr(bgc);
+      } else {
+        nextRgb = fromRgbStr(getComputedStyle(document.body).backgroundColor);
+      }
+      const nextHsl = toHsl(nextRgb.r, nextRgb.g, nextRgb.b);
+
+      // 4) Build a 3-stop gradient: top (lighter), mid (base), bottom (mixed toward next)
+      const topL = clamp(l2 + 0, 0, 100);
+      const topS = clamp(s2 + 0, 0, 100);
+      const top  = { h: heroHsl.h, s: topS, l: topL };
+
+      const mid  = { h: heroHsl.h, s: s2,   l: l2 };
+
+      // mix ~60% toward the next section to connect visually
+      const bot  = mixHsl(mid, nextHsl, 0.95);
+
+      // 5) Write CSS vars
+      feat.style.setProperty('--feature-top', hsla(top.h, top.s, top.l, 1));
+      feat.style.setProperty('--feature-mid', hsla(mid.h, mid.s, mid.l, 1));
+      feat.style.setProperty('--feature-bot', hsla(bot.h, bot.s, bot.l, 1));
+      
+      // Also expose the seam color globally so the hero can fade to it
+      document.documentElement.style.setProperty('--seam-color', hsla(top.h, top.s, top.l, 1));
+      // Optional: feather vignette
+      feat.style.setProperty('--feature-vignette', 'rgba(0,0,0,.06)');
+    } catch(e) {
+      /* leave fallbacks */
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tone);
+  } else {
+    tone();
+  }
+})();
+</script>

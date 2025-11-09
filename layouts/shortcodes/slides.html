@@ -1,0 +1,153 @@
+{{- /* slides: inline, responsive slideshow/carousel
+     Usage examples:
+       {{< slides folder="media/research/bioelectronics" >}}
+       {{< slides folder="media/research/biointerfaces" aspect="16/9" interval="4000" fade="350" shuffle="true" captions="true" >}}
+     Params:
+       folder    : path under /assets or /static (e.g., "media/research/bioelectronics")
+       images    : JSON array of explicit URLs (optional; overrides folder discovery)
+       max       : int limit (optional)
+       shuffle   : "true" | "false" (default "false")
+       aspect    : CSS ratio "16/9", "4/3", "1/1" (default "16/9")
+       interval  : ms visible per slide (default "3500")
+       fade      : ms fade (default "300")
+       captions  : "true" => show filename (without extension) as caption
+*/ -}}
+
+{{- /* Params */ -}}
+{{- $imagesParam := .Get "images" -}}
+{{- $folder      := .Get "folder"   | default "" -}}
+{{- $maxStr      := .Get "max"      | default "0" -}}
+{{- $max         := int $maxStr -}}
+{{- $shuffle     := .Get "shuffle"  | default "false" -}}
+{{- $aspect      := .Get "aspect"   | default "16/9" -}}
+{{- $interval    := .Get "interval" | default "3500" -}}
+{{- $fade        := .Get "fade"     | default "300" -}}
+{{- $captions    := .Get "captions" | default "false" -}}
+
+{{- /* Build images list */ -}}
+{{- $images := slice -}}
+{{- if $imagesParam -}}
+  {{- $images = $imagesParam -}}
+{{- else if $folder -}}
+  {{- $clean := strings.TrimPrefix "/" $folder -}}
+  {{- $assetsDir := printf "assets/%s" $clean -}}
+  {{- $staticDir := printf "static/%s" $clean -}}
+  {{- $exts := slice ".jpg" ".jpeg" ".png" ".webp" ".gif" ".apng" -}}
+
+  {{- if (fileExists $assetsDir) -}}
+    {{- range (sort (resources.Match (printf "%s/**" $clean)) "Name") -}}
+      {{- $ext := lower (path.Ext .) -}}
+      {{- if in $exts $ext -}}
+        {{- if in (slice ".jpg" ".jpeg" ".png" ".webp") $ext -}}
+          {{- $img := .Resize "2000x q75" -}}
+          {{- $images = $images | append $img.RelPermalink -}}
+        {{- else -}}
+          {{- $copied := resources.Copy (printf "%s/%s" $clean (path.Base .)) . -}}
+          {{- $images = $images | append $copied.RelPermalink -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- else if (fileExists $staticDir) -}}
+    {{- range (sort (readDir $staticDir) "Name") -}}
+      {{- if not .IsDir -}}
+        {{- $ext := lower (path.Ext .Name) -}}
+        {{- if in $exts $ext -}}
+          {{- $images = $images | append (printf "/%s/%s" $clean .Name) -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- if eq (lower $shuffle) "true" -}} {{- $images = shuffle $images -}} {{- end -}}
+{{- if gt $max 0 -}} {{- $images = first $max $images -}} {{- end -}}
+
+{{- /* Safe values for CSS/JS */ -}}
+{{- $aspectCSS := replace $aspect "/" " / " -}}     {{/* e.g., "16 / 9" */}}
+{{- $id := printf "slides-%d" (now.UnixNano) -}}
+{{- $intervalNum := int $interval -}}
+{{- $fadeNum := int $fade -}}
+{{- $captionsBool := eq (lower $captions) "true" -}}
+
+{{- if gt (len $images) 0 -}}
+  <link rel="preload" as="image" href="{{ index $images 0 }}">
+  {{- if gt (len $images) 1 -}}<link rel="preload" as="image" href="{{ index $images 1 }}">{{- end }}
+  <figure id="{{ $id }}" class="slides" style="--slides-aspect: {{ $aspectCSS | safeCSS }};" aria-label="Slideshow">
+    <div class="slides-viewport">
+      {{- range $i, $src := $images -}}
+        <img
+          class="slide{{ if eq $i 0 }} is-active{{ end }}"
+          src="{{ $src }}"
+          loading="{{ if gt $i 1 }}lazy{{ else }}eager{{ end }}"
+          decoding="async"
+          alt=""
+        >
+      {{- end -}}
+      {{- if $captionsBool -}}
+        <figcaption class="slides-caption" aria-live="polite"></figcaption>
+      {{- end -}}
+      <button class="slides-prev" type="button" aria-label="Previous slide">‹</button>
+      <button class="slides-next" type="button" aria-label="Next slide">›</button>
+    </div>
+  </figure>
+
+  <script>
+  (() => {
+    const root = document.getElementById('{{ $id }}');
+    if (!root) return;
+    const slides = [...root.querySelectorAll('img.slide')];
+    if (!slides.length) return;
+
+    const INTERVAL = {{ $intervalNum }};
+    const FADE = {{ $fadeNum }};
+    const CAPTIONS = {{ $captionsBool }};
+
+    let i = 0, timer;
+
+    function basename(url){
+      try { const u = new URL(url, location.href); return u.pathname.split('/').pop().replace(/\.[^.]+$/, '').replace(/[_-]+/g,' '); }
+      catch { return url; }
+    }
+
+    function show(idx, user=false){
+      if (idx === i) return;
+      const cur = slides[i];
+      const nxt = slides[idx];
+      if (!nxt) return;
+      cur.classList.remove('is-active');
+      nxt.classList.add('is-active');
+      i = idx;
+      if (CAPTIONS) {
+        const cap = root.querySelector('.slides-caption');
+        if (cap) cap.textContent = basename(nxt.currentSrc || nxt.src);
+      }
+      if (user) restart();
+    }
+
+    function next(user){ show((i+1) % slides.length, user); }
+    function prev(user){ show((i-1+slides.length) % slides.length, user); }
+
+    function restart(){
+      if (timer) clearInterval(timer);
+      if (slides.length > 1) {
+        timer = setInterval(() => next(false), INTERVAL + FADE);
+      }
+    }
+
+    root.querySelector('.slides-next')?.addEventListener('click', () => next(true));
+    root.querySelector('.slides-prev')?.addEventListener('click', () => prev(true));
+
+    if (CAPTIONS) {
+      const cap = root.querySelector('.slides-caption');
+      if (cap) cap.textContent = basename(slides[0].currentSrc || slides[0].src);
+    }
+    restart();
+
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (timer) clearInterval(timer);
+    }
+  })();
+  </script>
+{{- else -}}
+  <p class="text-muted"><em>No images found for {{ $folder }}</em></p>
+{{- end -}}

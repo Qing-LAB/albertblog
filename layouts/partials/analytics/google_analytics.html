@@ -1,0 +1,19 @@
+{{/* GA override — safe on Hugo ≥0.146: read only from params, never from .Site.GoogleAnalytics */}}
+{{ $ga := "" }}
+{{ with .Site.Params.marketing }}
+  {{ with .analytics }}
+    {{ with .google_analytics }}
+      {{ $ga = . }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+
+{{ with $ga }}
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ . }}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '{{ . }}');
+  </script>
+{{ end }}
